@@ -1,7 +1,12 @@
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:21-jdk
 
-COPY target/job-tracker-0.0.1-SNAPSHOT.jar app.jar
+WORKDIR /app
+
+COPY . .
+
+RUN chmod +x mvnw
+RUN ./mvnw clean package -DskipTests
 
 EXPOSE 8080
 
-ENTRYPOINT ["java","-jar","/app.jar"]
+CMD ["java","-jar","target/job-tracker-0.0.1-SNAPSHOT.jar"]
