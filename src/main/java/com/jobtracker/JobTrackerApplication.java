@@ -32,6 +32,23 @@ public class JobTrackerApplication {
 		} catch (Exception e) {
 			System.err.println("Failed to load .env file: " + e.getMessage());
 		}
+
+		// 🔍 Debug log to verify environment variables on Render
+		String mongoUri = System.getenv("MONGODB_URI");
+		if (mongoUri == null) {
+			mongoUri = System.getProperty("MONGODB_URI");
+		}
+		System.out.println("==================================================");
+		System.out.println("[CONFIG CHECK] MONGODB_URI Env Present: " + (System.getenv("MONGODB_URI") != null));
+		System.out.println("[CONFIG CHECK] MONGODB_URI Prop Present: " + (System.getProperty("MONGODB_URI") != null));
+		if (mongoUri != null) {
+			String masked = mongoUri.replaceAll(":[^@/]+@", ":****@");
+			System.out.println("[CONFIG CHECK] Resolved MONGODB_URI: " + masked);
+		} else {
+			System.out.println("[CONFIG CHECK] Resolved MONGODB_URI: NULL (App will connect to localhost:27017)");
+		}
+		System.out.println("==================================================");
+
 		SpringApplication.run(JobTrackerApplication.class, args);
 	}
 
