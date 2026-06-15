@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: job-tracker
+    runtime: docker
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: MONGODB_URI
+        sync: false # User must provide this (e.g. from MongoDB Atlas)
+      - key: JSEARCH_API_KEY
+        sync: false # User must provide this
+      - key: GEMINI_API_KEY
+        sync: false # User must provide this

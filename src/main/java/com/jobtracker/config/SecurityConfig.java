@@ -8,7 +8,9 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.cors.*;
+
 import com.jobtracker.auth.JwtFilter;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
@@ -27,13 +29,28 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .cors(Customizer.withDefaults())
                 .authorizeHttpRequests(auth -> auth
+
+                        // Public endpoints
                         .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/", "/index.html", "/login.html", "/signup.html", "/css/**", "/js/**").permitAll()
+                        .requestMatchers("/api/jobs/openings/**").permitAll()
+
+                        .requestMatchers(
+                                "/",
+                                "/index.html",
+                                "/login.html",
+                                "/signup.html",
+                                "/css/**",
+                                "/js/**"
+                        ).permitAll()
+
+                        // Protected endpoints
                         .requestMatchers("/api/jobs/**").authenticated()
+
+                        // Everything else
                         .anyRequest().permitAll()
                 )
-                .formLogin(form -> form.disable())   // 🔥 disable default login
-                .httpBasic(basic -> basic.disable()) // 🔥 disable basic auth
+                .formLogin(form -> form.disable())
+                .httpBasic(basic -> basic.disable())
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -60,11 +77,16 @@ public class SecurityConfig {
                 "http://127.0.0.1:8081"
         ));
 
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedMethods(
+                List.of("GET", "POST", "PUT", "DELETE", "OPTIONS")
+        );
+
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
 
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        UrlBasedCorsConfigurationSource source =
+                new UrlBasedCorsConfigurationSource();
+
         source.registerCorsConfiguration("/**", configuration);
 
         return source;
