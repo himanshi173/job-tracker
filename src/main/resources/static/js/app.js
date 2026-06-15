@@ -205,54 +205,10 @@ function renderJobs() {
     });
 }
 
-// Add or Update Job
-async function handleFormSubmit(e) {
-    e.preventDefault();
-    if (!session) return;
-
-    const companyName = document.getElementById('companyName').value.trim();
-    const role = document.getElementById('role').value.trim();
-    const status = document.getElementById('status').value;
-    const appliedDate = document.getElementById('appliedDate').value;
-    const interviewDate = document.getElementById('interviewDate').value || null;
-    const notes = document.getElementById('notes').value.trim();
-    const salary = document.getElementById('salary').value.trim();
-    const location = document.getElementById('location').value.trim();
-    const jobDescription = document.getElementById('jobDescription').value.trim();
-    const interviewNotes = document.getElementById('interviewNotes').value.trim();
-
-    if (!companyName || !role || !appliedDate) {
-        showAlert('Please fill all required fields', 'error');
-        return;
-    }
-
-    // Keep cached resume data, but include inputs
-    const payload = {
-        companyName,
-        role,
-        status,
-        appliedDate,
-        interviewDate,
-        notes,
-        salary,
-        location,
-        jobDescription,
-        interviewNotes
-    };
-    
-    // Copy existing properties if we are editing
-    if (editJobId) {
-        const existing = allJobs.find(j => j.id === editJobId);
-        if (existing) {
-            payload.resumePath = existing.resumePath;
-            payload.resumeFilename = existing.resumeFilename;
-            payload.resumeScore = existing.resumeScore;
-            payload.aiAnalysisJson = existing.aiAnalysisJson;
-        }
-    }
-
-    const submitBtn = document.getElementById('saveJobBtn');
-    submitBtn.disabled = true;
+// Submit Job Data to backend
+async function submitJobData(payload) {
+    const saveJobBtn = document.getElementById('saveJobBtn');
+    if (saveJobBtn) saveJobBtn.disabled = true;
 
     try {
         let response;
@@ -284,13 +240,72 @@ async function handleFormSubmit(e) {
             fetchJobs();
         } else {
             showAlert('Failed to save application', 'error');
-            submitBtn.disabled = false;
+            if (saveJobBtn) saveJobBtn.disabled = false;
         }
     } catch (err) {
         console.error(err);
         showAlert('Network error occurred', 'error');
-        submitBtn.disabled = false;
+        if (saveJobBtn) saveJobBtn.disabled = false;
     }
+}
+
+// Add or Update Job (via Save Application button)
+async function handleFormSubmit(e) {
+    e.preventDefault();
+    if (!session) return;
+
+    const companyName = document.getElementById('companyName').value.trim();
+    const role = document.getElementById('role').value.trim();
+    let status = document.getElementById('status').value;
+    let appliedDate = document.getElementById('appliedDate').value;
+    const interviewDate = document.getElementById('interviewDate').value || null;
+    const notes = document.getElementById('notes').value.trim();
+    const salary = document.getElementById('salary').value.trim();
+    const location = document.getElementById('location').value.trim();
+    const jobDescription = document.getElementById('jobDescription').value.trim();
+    const interviewNotes = document.getElementById('interviewNotes').value.trim();
+
+    if (!companyName || !role || !appliedDate) {
+        if (!companyName && !role) {
+            showAlert('Please enter at least a Company Name or Job Role to save.', 'error');
+            return;
+        }
+
+        const confirmDraft = confirm('Some required fields (like Applied Date) are empty. Would you like to save this application as a Draft?');
+        if (!confirmDraft) {
+            return;
+        }
+
+        status = 'Draft';
+        appliedDate = null;
+    }
+
+    // Keep cached resume data, but include inputs
+    const payload = {
+        companyName: companyName || "Unnamed Company",
+        role: role || "Unnamed Role",
+        status,
+        appliedDate,
+        interviewDate,
+        notes,
+        salary,
+        location,
+        jobDescription,
+        interviewNotes
+    };
+    
+    // Copy existing properties if we are editing
+    if (editJobId) {
+        const existing = allJobs.find(j => j.id === editJobId);
+        if (existing) {
+            payload.resumePath = existing.resumePath;
+            payload.resumeFilename = existing.resumeFilename;
+            payload.resumeScore = existing.resumeScore;
+            payload.aiAnalysisJson = existing.aiAnalysisJson;
+        }
+    }
+
+    await submitJobData(payload);
 }
 
 

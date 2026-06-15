@@ -279,6 +279,19 @@ h1, h2, h3, h4 {
     box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);
 }
 
+.btn-warning {
+    background: var(--warning-bg);
+    border: 1px solid var(--warning);
+    color: var(--warning);
+}
+
+.btn-warning:hover {
+    background: var(--warning);
+    color: #111827;
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35);
+}
+
+
 .auth-footer {
     text-align: center;
     margin-top: 24px;
