@@ -40,6 +40,25 @@ public class JobController {
     @Autowired
     private InterviewReminderService interviewReminderService;
 
+    private void sendImmediateReminderIfScheduled(JobApplication job) {
+        if (job.getInterviewDate() != null) {
+            try {
+                User user = job.getUser();
+                if (user != null && user.getEmail() != null && !user.getEmail().trim().isEmpty()) {
+                    mailService.sendInterviewReminder(
+                            user.getEmail(),
+                            user.getUsername(),
+                            job.getCompanyName() != null ? job.getCompanyName() : "Unnamed Company",
+                            job.getRole() != null ? job.getRole() : "Unnamed Role",
+                            job.getInterviewDate().toString() + " (Scheduled Directly)"
+                    );
+                }
+            } catch (Exception e) {
+                System.err.println("Failed to send immediate reminder email: " + e.getMessage());
+            }
+        }
+    }
+
     // ✅ ADD JOB (USER BASED)
     @PostMapping
     public JobApplication addJob(@RequestBody JobApplication job,
@@ -50,7 +69,9 @@ public class JobController {
 
         job.setUser(user);
 
-        return service.save(job);
+        JobApplication saved = service.save(job);
+        sendImmediateReminderIfScheduled(saved);
+        return saved;
     }
 
     // ✅ GET JOBS (ONLY LOGGED USER)
@@ -63,7 +84,9 @@ public class JobController {
     @PutMapping("/{id}")
     public JobApplication updateJob(@PathVariable String id,
                                     @RequestBody JobApplication job) {
-        return service.update(id, job);
+        JobApplication updated = service.update(id, job);
+        sendImmediateReminderIfScheduled(updated);
+        return updated;
     }
 
     // ✅ DELETE JOB

@@ -1,6 +1,7 @@
 // Dashboard API integration and UI Logic
 
-const BACKEND_URL = (window.location.port !== '8081' && window.location.hostname === 'localhost') ? 'http://localhost:8081' : '';
+const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname === '';
+const BACKEND_URL = (isLocalhost && window.location.port !== '8081') ? 'http://localhost:8081' : '';
 const API_JOBS = `${BACKEND_URL}/api/jobs`;
 const API_OPENINGS = `${BACKEND_URL}/api/jobs/openings`;
 let allJobs = [];

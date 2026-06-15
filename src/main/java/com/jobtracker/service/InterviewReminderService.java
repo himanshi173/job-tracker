@@ -22,23 +22,28 @@ public class InterviewReminderService {
     // Run every day at 9:00 AM
     @Scheduled(cron = "0 0 9 * * ?")
     public void checkUpcomingInterviews() {
-        System.out.println("[Scheduler] Checking for upcoming interviews scheduled for tomorrow...");
-        LocalDate tomorrow = LocalDate.now().plusDays(1);
+        System.out.println("[Scheduler] Checking for upcoming interviews scheduled for today or tomorrow...");
+        LocalDate today = LocalDate.now();
+        LocalDate tomorrow = today.plusDays(1);
         List<JobApplication> jobs = jobRepository.findAll();
 
         int remindersSent = 0;
         for (JobApplication job : jobs) {
-            if (job.getInterviewDate() != null && job.getInterviewDate().equals(tomorrow)) {
-                User user = job.getUser();
-                if (user != null && user.getEmail() != null && !user.getEmail().trim().isEmpty()) {
-                    mailService.sendInterviewReminder(
-                            user.getEmail(),
-                            user.getUsername(),
-                            job.getCompanyName(),
-                            job.getRole(),
-                            job.getInterviewDate().toString()
-                    );
-                    remindersSent++;
+            if (job.getInterviewDate() != null) {
+                LocalDate interviewDate = job.getInterviewDate();
+                if (interviewDate.equals(today) || interviewDate.equals(tomorrow)) {
+                    User user = job.getUser();
+                    if (user != null && user.getEmail() != null && !user.getEmail().trim().isEmpty()) {
+                        String timeframe = interviewDate.equals(today) ? "TODAY" : "TOMORROW";
+                        mailService.sendInterviewReminder(
+                                user.getEmail(),
+                                user.getUsername(),
+                                job.getCompanyName(),
+                                job.getRole(),
+                                interviewDate.toString() + " (" + timeframe + ")"
+                        );
+                        remindersSent++;
+                    }
                 }
             }
         }

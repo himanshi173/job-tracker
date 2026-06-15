@@ -83,4 +83,44 @@ public class MailService {
             System.out.println("==================================================");
         }
     }
+
+    public void sendOtpEmail(String toEmail, String username, String otp, String type) {
+        String subject = "signup".equalsIgnoreCase(type) ? 
+                "Verify Your Job Tracker Account - OTP" : 
+                "Reset Your Job Tracker Password - OTP";
+        
+        String body = "Hello " + (username != null ? username : "User") + ",\n\n" +
+                "Your One-Time Password (OTP) code is:\n\n" +
+                "👉   " + otp + "   👈\n\n" +
+                "This OTP is valid for 10 minutes. Please do not share this code with anyone.\n\n" +
+                "Best regards,\n" +
+                "Job Tracker Team";
+
+        if (mailSender == null) {
+            System.out.println("==================================================");
+            System.out.println("[MOCK OTP EMAIL ALERT - SMTP Not Configured]");
+            System.out.println("To: " + toEmail);
+            System.out.println("Subject: " + subject);
+            System.out.println("Body:\n" + body);
+            System.out.println("==================================================");
+            return;
+        }
+
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setTo(toEmail);
+            message.setSubject(subject);
+            message.setText(body);
+            mailSender.send(message);
+            System.out.println("OTP email successfully sent to: " + toEmail);
+        } catch (Exception e) {
+            System.err.println("Failed to send OTP email to " + toEmail + " due to: " + e.getMessage());
+            System.out.println("==================================================");
+            System.out.println("[MOCK OTP EMAIL ALERT - Fallback Mode]");
+            System.out.println("To: " + toEmail);
+            System.out.println("Subject: " + subject);
+            System.out.println("Body:\n" + body);
+            System.out.println("==================================================");
+        }
+    }
 }
