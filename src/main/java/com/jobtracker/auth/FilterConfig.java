@@ -1,0 +1,1 @@
+// Deleted and replaced by direct registration in SecurityConfig
