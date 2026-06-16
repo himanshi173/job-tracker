@@ -45,6 +45,8 @@ public class SecurityConfig {
 
                         // Protected endpoints
                         .requestMatchers("/api/jobs/**").authenticated()
+                        .requestMatchers("/api/interviews/**").authenticated()
+                        .requestMatchers("/api/alerts/**").authenticated()
 
                         // Everything else
                         .anyRequest().permitAll()

@@ -127,4 +127,48 @@ public class GeminiService {
                 + "  ]\n"
                 + "}";
     }
+
+    public String generateContent(String prompt) {
+        if (apiKey == null || apiKey.trim().isEmpty()) {
+            return "Gemini API key is not configured.";
+        }
+
+        try {
+            // Prepare payload
+            Map<String, Object> part = Map.of("text", prompt);
+            Map<String, Object> content = Map.of("parts", new Object[]{part});
+            Map<String, Object> payloadMap = Map.of("contents", new Object[]{content});
+            String payload = objectMapper.writeValueAsString(payloadMap);
+
+            HttpClient client = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(15))
+                    .build();
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=" + apiKey))
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(payload))
+                    .timeout(Duration.ofSeconds(30))
+                    .build();
+
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() != 200) {
+                return "Gemini API failed with status code: " + response.statusCode() + " - " + response.body();
+            }
+
+            JsonNode root = objectMapper.readTree(response.body());
+            JsonNode textNode = root.path("candidates").get(0).path("content").path("parts").get(0).path("text");
+            
+            if (textNode.isMissingNode()) {
+                return "Could not parse text candidate from Gemini response.";
+            }
+
+            return textNode.asText().trim();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "An error occurred during Gemini AI call: " + e.getMessage();
+        }
+    }
 }

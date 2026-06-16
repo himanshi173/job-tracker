@@ -258,6 +258,17 @@ public class MailService {
         }
     }
 
+    public void sendJobAlertDigest(String toEmail, String username, String role, String location, String jobsText) {
+        String subject = "Daily Job Alerts: " + role + " in " + location;
+        String body = "Hello " + (username != null ? username : "User") + ",\n\n" +
+                "Here is your daily digest of new job openings matching your search criteria: " + role + " in " + location + "\n\n" +
+                jobsText + "\n\n" +
+                "Happy job hunting!\n\n" +
+                "Best regards,\n" +
+                "Job Tracker Team";
+        sendMail(toEmail, subject, body);
+    }
+
     private void printMockEmail(String toEmail, String subject, String body, String mode) {
         System.out.println("==================================================");
         System.out.println("[MOCK EMAIL ALERT - " + mode + "]");

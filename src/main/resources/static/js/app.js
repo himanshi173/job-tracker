@@ -4,8 +4,11 @@ const isLocalhost = window.location.hostname === 'localhost' || window.location.
 const BACKEND_URL = (isLocalhost && window.location.port !== '8081') ? 'http://localhost:8081' : '';
 const API_JOBS = `${BACKEND_URL}/api/jobs`;
 const API_OPENINGS = `${BACKEND_URL}/api/jobs/openings`;
+const API_INTERVIEWS = `${BACKEND_URL}/api/interviews`;
+const API_ALERTS = `${BACKEND_URL}/api/alerts`;
 let allJobs = [];
 let editJobId = null; // Stores job ID when editing
+let activeInterviewSession = null;
 let currentCalendarDate = new Date();
 let chartInstances = {}; // Holds Chart.js objects to prevent overlap redraws
 
@@ -805,10 +808,13 @@ function setupTabNavigation() {
                 renderJobs();
             } else if (targetTab === 'openings') {
                 renderOpenings();
+                fetchJobAlerts();
             } else if (targetTab === 'calendar') {
                 renderCalendar();
             } else if (targetTab === 'analytics') {
                 renderAnalytics();
+            } else if (targetTab === 'practice') {
+                renderPracticeHub();
             }
         });
     });
@@ -1144,6 +1150,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize Light/Dark theme toggle
     initTheme();
+
+    // Mock Interview event listeners
+    if (document.getElementById('startPracticeBtn')) {
+        document.getElementById('startPracticeBtn').addEventListener('click', startPracticeInterview);
+    }
+    if (document.getElementById('practice-input-form')) {
+        document.getElementById('practice-input-form').addEventListener('submit', submitPracticeAnswer);
+    }
+
+    // Job Alerts event listeners
+    if (document.getElementById('createAlertBtn')) {
+        document.getElementById('createAlertBtn').addEventListener('click', createJobAlert);
+    }
 
     // Profile / Saved Jobs Modal event listeners
     const userBadge = document.querySelector('.user-badge');
@@ -1591,3 +1610,476 @@ async function deleteSavedJob(id) {
 window.renderSavedJobs = renderSavedJobs;
 window.markSavedJobAsApplied = markSavedJobAsApplied;
 window.deleteSavedJob = deleteSavedJob;
+window.deleteJobAlert = deleteJobAlert;
+
+/* ==========================================================================
+   Mock Interview Practice Simulator & Job Alerts
+   ========================================================================== */
+
+// 1. Render Practice Hub
+function renderPracticeHub() {
+    if (!session) return;
+    
+    // Reset views
+    document.getElementById('practice-chat-container').classList.add('hidden');
+    document.getElementById('practice-evaluation-container').classList.add('hidden');
+    document.getElementById('practice-welcome-screen').classList.remove('hidden');
+    activeInterviewSession = null;
+
+    // Populate Job dropdown with active applications
+    const selectEl = document.getElementById('practice-job-select');
+    selectEl.innerHTML = '<option value="" disabled selected>Select a job...</option>';
+    
+    // Filter out "saved" status (keep Draft, Applied, Interviewing, Offered, Rejected)
+    const activeJobs = allJobs.filter(j => j.status.toLowerCase() !== 'saved');
+    if (activeJobs.length === 0) {
+        selectEl.innerHTML = '<option value="" disabled selected>No active jobs found...</option>';
+    } else {
+        activeJobs.forEach(job => {
+            const opt = document.createElement('option');
+            opt.value = job.id;
+            opt.innerText = `${job.role} at ${job.companyName} (${job.status})`;
+            selectEl.appendChild(opt);
+        });
+    }
+
+    loadPracticeHistory();
+}
+
+// 2. Start Practice Interview
+async function startPracticeInterview() {
+    if (!session) return;
+    const jobId = document.getElementById('practice-job-select').value;
+    if (!jobId) {
+        showAlert('Please select a job application first', 'error');
+        return;
+    }
+
+    const startBtn = document.getElementById('startPracticeBtn');
+    startBtn.disabled = true;
+    startBtn.innerText = 'Starting...';
+
+    try {
+        const response = await fetch(`${API_INTERVIEWS}/start?jobId=${jobId}&userId=${session.userId}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${session.token}`
+            }
+        });
+
+        if (response.ok) {
+            activeInterviewSession = await response.json();
+            showAlert('Mock interview started!', 'success');
+            
+            // Switch screens
+            document.getElementById('practice-welcome-screen').classList.add('hidden');
+            document.getElementById('practice-evaluation-container').classList.add('hidden');
+            document.getElementById('practice-chat-container').classList.remove('hidden');
+            
+            // Header information
+            document.getElementById('practice-header-title').innerText = `${activeInterviewSession.role} Interview`;
+            document.getElementById('practice-header-subtitle').innerText = `Mock Interview for ${activeInterviewSession.companyName}`;
+            
+            // Load messages
+            renderPracticeChat();
+        } else {
+            const err = await response.text();
+            showAlert(err || 'Failed to start practice interview', 'error');
+        }
+    } catch (err) {
+        console.error(err);
+        showAlert('Network error starting practice session', 'error');
+    } finally {
+        startBtn.disabled = false;
+        startBtn.innerText = 'Start Interview';
+    }
+}
+
+// 3. Render Practice Chat Messages
+function renderPracticeChat() {
+    if (!activeInterviewSession) return;
+
+    const chatEl = document.getElementById('practice-chat-messages');
+    chatEl.innerHTML = '';
+
+    activeInterviewSession.messages.forEach(msg => {
+        const bubble = document.createElement('div');
+        bubble.style.padding = '12px 16px';
+        bubble.style.borderRadius = '14px';
+        bubble.style.maxWidth = '75%';
+        bubble.style.fontSize = '13.5px';
+        bubble.style.lineHeight = '1.4';
+        bubble.className = 'glass';
+
+        if (msg.sender === 'interviewer') {
+            bubble.style.alignSelf = 'flex-start';
+            bubble.style.background = 'rgba(255, 255, 255, 0.05)';
+            bubble.style.borderLeft = '3px solid var(--primary)';
+        } else {
+            bubble.style.alignSelf = 'flex-end';
+            bubble.style.background = 'rgba(var(--primary-rgb), 0.1)';
+            bubble.style.borderRight = '3px solid var(--primary)';
+        }
+
+        bubble.innerHTML = escapeHtml(msg.text).replace(/\n/g, '<br>');
+        chatEl.appendChild(bubble);
+    });
+
+    // Update Progress
+    const progressBadge = document.getElementById('practice-progress-badge');
+    const currentIndex = activeInterviewSession.currentQuestionIndex;
+    const max = activeInterviewSession.maxQuestions;
+    
+    if (activeInterviewSession.completed) {
+        progressBadge.innerText = 'Completed';
+        progressBadge.className = 'badge badge-success';
+    } else {
+        progressBadge.innerText = `Question ${currentIndex} of ${max}`;
+        progressBadge.className = 'badge badge-warning';
+    }
+
+    // Scroll to bottom
+    chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+// 4. Submit Answer
+async function submitPracticeAnswer(e) {
+    e.preventDefault();
+    if (!session || !activeInterviewSession) return;
+
+    const inputEl = document.getElementById('practice-answer-input');
+    const answer = inputEl.value.trim();
+    if (!answer) return;
+
+    // Disable input/btn
+    inputEl.value = '';
+    inputEl.disabled = true;
+    const sendBtn = document.getElementById('practiceSendBtn');
+    sendBtn.disabled = true;
+
+    // Locally append candidate answer for instant feedback
+    activeInterviewSession.messages.push({ sender: 'candidate', text: answer });
+    renderPracticeChat();
+
+    try {
+        const response = await fetch(`${API_INTERVIEWS}/${activeInterviewSession.id}/answer`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.token}`
+            },
+            body: JSON.stringify({ answer })
+        });
+
+        if (response.ok) {
+            activeInterviewSession = await response.json();
+            
+            if (activeInterviewSession.completed) {
+                showAlert('Interview completed! Loading report...', 'success');
+                renderPracticeEvaluation(activeInterviewSession);
+                loadPracticeHistory();
+            } else {
+                renderPracticeChat();
+            }
+        } else {
+            const err = await response.text();
+            showAlert(err || 'Failed to submit answer', 'error');
+        }
+    } catch (err) {
+        console.error(err);
+        showAlert('Network error submitting answer', 'error');
+    } finally {
+        inputEl.disabled = false;
+        sendBtn.disabled = false;
+        inputEl.focus();
+    }
+}
+
+// 5. Render Practice Evaluation
+function renderPracticeEvaluation(sessionObj) {
+    activeInterviewSession = null;
+    
+    // Switch screens
+    document.getElementById('practice-welcome-screen').classList.add('hidden');
+    document.getElementById('practice-chat-container').classList.add('hidden');
+    document.getElementById('practice-evaluation-container').classList.remove('hidden');
+
+    document.getElementById('eval-session-info').innerText = `${sessionObj.role} Interview at ${sessionObj.companyName}`;
+
+    let data = { score: 0, strengths: [], improvements: [], sampleAnswers: [] };
+    try {
+        if (sessionObj.evaluationJson) {
+            data = JSON.parse(sessionObj.evaluationJson);
+        }
+    } catch (e) {
+        console.error("Failed to parse evaluation JSON: ", e);
+    }
+
+    document.getElementById('eval-score-text').innerText = `${data.score || 0}%`;
+
+    // Strengths
+    const strengthsEl = document.getElementById('eval-strengths-list');
+    strengthsEl.innerHTML = '';
+    if (data.strengths && data.strengths.length > 0) {
+        data.strengths.forEach(s => {
+            const li = document.createElement('li');
+            li.innerText = s;
+            strengthsEl.appendChild(li);
+        });
+    } else {
+        strengthsEl.innerHTML = '<p style="color: var(--text-muted);">No feedback logged.</p>';
+    }
+
+    // Improvements
+    const improvementsEl = document.getElementById('eval-improvements-list');
+    improvementsEl.innerHTML = '';
+    if (data.improvements && data.improvements.length > 0) {
+        data.improvements.forEach(imp => {
+            const li = document.createElement('li');
+            li.innerText = imp;
+            improvementsEl.appendChild(li);
+        });
+    } else {
+        improvementsEl.innerHTML = '<p style="color: var(--text-muted);">No suggestions logged.</p>';
+    }
+
+    // Sample Q&A List
+    const qaEl = document.getElementById('eval-qa-list');
+    qaEl.innerHTML = '';
+    
+    if (data.sampleAnswers && data.sampleAnswers.length > 0) {
+        data.sampleAnswers.forEach(qa => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'glass';
+            wrapper.style.padding = '16px';
+            wrapper.style.borderRadius = '10px';
+            wrapper.style.marginBottom = '12px';
+            
+            wrapper.innerHTML = `
+                <h4 style="margin: 0 0 6px 0; font-size: 14px; color: var(--primary);">Question:</h4>
+                <p style="margin: 0 0 12px 0; font-size: 13px; font-weight: 500;">${escapeHtml(qa.question)}</p>
+                <h4 style="margin: 0 0 6px 0; font-size: 13px; color: var(--success); display: flex; align-items: center; gap: 6px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                    Optimal Suggested Answer:
+                </h4>
+                <p style="margin: 0; font-size: 13px; color: var(--text-secondary); line-height: 1.4;">${escapeHtml(qa.suggestedAnswer).replace(/\n/g, '<br>')}</p>
+            `;
+            qaEl.appendChild(wrapper);
+        });
+    } else {
+        // Fallback using messages from session if JSON parse failed
+        const transcriptQ = sessionObj.messages.filter(m => m.sender === 'interviewer');
+        transcriptQ.forEach((q, idx) => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'glass';
+            wrapper.style.padding = '16px';
+            wrapper.style.borderRadius = '10px';
+            wrapper.style.marginBottom = '12px';
+            wrapper.innerHTML = `
+                <h4 style="margin: 0 0 6px 0; font-size: 14px; color: var(--primary);">Question ${idx+1}:</h4>
+                <p style="margin: 0; font-size: 13px;">${escapeHtml(q.text)}</p>
+            `;
+            qaEl.appendChild(wrapper);
+        });
+    }
+}
+
+// 6. Load Practice History
+async function loadPracticeHistory() {
+    if (!session) return;
+    const historyList = document.getElementById('practice-history-list');
+    
+    try {
+        const response = await fetch(`${API_INTERVIEWS}/history?userId=${session.userId}`, {
+            headers: {
+                'Authorization': `Bearer ${session.token}`
+            }
+        });
+
+        if (response.ok) {
+            const history = await response.json();
+            historyList.innerHTML = '';
+            
+            if (history.length === 0) {
+                historyList.innerHTML = '<p style="font-size: 12px; color: var(--text-muted); text-align: center; margin-top: 20px;">No past sessions found.</p>';
+                return;
+            }
+
+            // Sort history - newest first
+            history.reverse().forEach(sessionObj => {
+                const item = document.createElement('div');
+                item.className = 'glass';
+                item.style.padding = '12px';
+                item.style.borderRadius = '8px';
+                item.style.cursor = 'pointer';
+                item.style.display = 'flex';
+                item.style.justifyContent = 'space-between';
+                item.style.alignItems = 'center';
+                item.style.transition = 'all 0.2s';
+                
+                let scoreHtml = '<span class="badge badge-warning" style="font-size: 10px;">In Progress</span>';
+                let scoreVal = 0;
+                if (sessionObj.completed) {
+                    try {
+                        const evalData = JSON.parse(sessionObj.evaluationJson);
+                        scoreVal = evalData.score || 0;
+                        scoreHtml = `<span class="badge badge-success" style="font-size: 10px;">Score: ${scoreVal}%</span>`;
+                    } catch (e) {
+                        scoreHtml = '<span class="badge badge-success" style="font-size: 10px;">Completed</span>';
+                    }
+                }
+
+                item.innerHTML = `
+                    <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 170px;">
+                        <h4 style="margin: 0; font-size: 13px; font-weight: 500;">${escapeHtml(sessionObj.role)}</h4>
+                        <p style="margin: 2px 0 0 0; font-size: 11px; color: var(--text-muted);">${escapeHtml(sessionObj.companyName)}</p>
+                    </div>
+                    ${scoreHtml}
+                `;
+
+                item.addEventListener('click', () => {
+                    if (sessionObj.completed) {
+                        renderPracticeEvaluation(sessionObj);
+                    } else {
+                        // Resume in-progress session
+                        activeInterviewSession = sessionObj;
+                        document.getElementById('practice-welcome-screen').classList.add('hidden');
+                        document.getElementById('practice-evaluation-container').classList.add('hidden');
+                        document.getElementById('practice-chat-container').classList.remove('hidden');
+                        document.getElementById('practice-header-title').innerText = `${activeInterviewSession.role} Interview`;
+                        document.getElementById('practice-header-subtitle').innerText = `Resume Interview at ${activeInterviewSession.companyName}`;
+                        renderPracticeChat();
+                    }
+                });
+
+                historyList.appendChild(item);
+            });
+        }
+    } catch (err) {
+        console.error("Error loading history: ", err);
+    }
+}
+
+// 7. Create Job Search Email Alert
+async function createJobAlert() {
+    if (!session) return;
+    
+    const roleInput = document.getElementById('openingsSearchRole').value.trim();
+    const locInput = document.getElementById('openingsSearchLoc').value.trim();
+
+    if (!roleInput && !locInput) {
+        showAlert('Please enter at least a Role or a Location to create a search alert', 'error');
+        return;
+    }
+
+    const alertBtn = document.getElementById('createAlertBtn');
+    alertBtn.disabled = true;
+
+    try {
+        const response = await fetch(API_ALERTS, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.token}`
+            },
+            body: JSON.stringify({
+                userId: session.userId,
+                role: roleInput,
+                location: locInput
+            })
+        });
+
+        if (response.ok) {
+            showAlert('Email search alert created successfully!', 'success');
+            fetchJobAlerts();
+        } else {
+            const err = await response.text();
+            showAlert(err || 'Failed to create search alert', 'error');
+        }
+    } catch (err) {
+        console.error(err);
+        showAlert('Network error saving search alert', 'error');
+    } finally {
+        alertBtn.disabled = false;
+    }
+}
+
+// 8. Fetch Job Alerts
+async function fetchJobAlerts() {
+    if (!session) return;
+
+    try {
+        const response = await fetch(`${API_ALERTS}?userId=${session.userId}`, {
+            headers: {
+                'Authorization': `Bearer ${session.token}`
+            }
+        });
+
+        if (response.ok) {
+            const alerts = await response.json();
+            const listEl = document.getElementById('active-alerts-list');
+            listEl.innerHTML = '';
+
+            if (alerts.length === 0) {
+                listEl.innerHTML = '<p style="font-size: 13px; color: var(--text-muted);">You have no active job alerts configured.</p>';
+                return;
+            }
+
+            alerts.forEach(alert => {
+                const tag = document.createElement('div');
+                tag.className = 'glass';
+                tag.style.padding = '8px 14px';
+                tag.style.borderRadius = '20px';
+                tag.style.display = 'flex';
+                tag.style.alignItems = 'center';
+                tag.style.gap = '8px';
+                tag.style.fontSize = '12px';
+                tag.style.border = '1px solid rgba(var(--primary-rgb), 0.2)';
+
+                let text = '';
+                if (alert.role && alert.location) {
+                    text = `"${escapeHtml(alert.role)}" in ${escapeHtml(alert.location)}`;
+                } else if (alert.role) {
+                    text = `"${escapeHtml(alert.role)}" anywhere`;
+                } else {
+                    text = `Any job in ${escapeHtml(alert.location)}`;
+                }
+
+                tag.innerHTML = `
+                    <span style="font-weight: 500;">🔔 ${text}</span>
+                    <button onclick="deleteJobAlert('${alert.id}')" style="background: none; border: none; cursor: pointer; color: var(--error); display: flex; align-items: center; padding: 2px;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    </button>
+                `;
+                listEl.appendChild(tag);
+            });
+        }
+    } catch (err) {
+        console.error("Error loading alerts: ", err);
+    }
+}
+
+// 9. Delete Job Alert
+async function deleteJobAlert(id) {
+    if (!session) return;
+    if (!confirm('Are you sure you want to delete this email search alert?')) return;
+
+    try {
+        const response = await fetch(`${API_ALERTS}/${id}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${session.token}`
+            }
+        });
+
+        if (response.ok) {
+            showAlert('Search alert deleted successfully', 'success');
+            fetchJobAlerts();
+        } else {
+            showAlert('Failed to delete search alert', 'error');
+        }
+    } catch (err) {
+        console.error(err);
+        showAlert('Network error deleting alert', 'error');
+    }
+}
