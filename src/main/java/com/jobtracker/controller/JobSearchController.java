@@ -15,7 +15,14 @@ import java.util.stream.Collectors;
 @CrossOrigin(origins = "*")
 public class JobSearchController {
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
+
+    public JobSearchController() {
+        org.springframework.http.client.SimpleClientHttpRequestFactory factory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(3500);
+        factory.setReadTimeout(3500);
+        this.restTemplate = new RestTemplate(factory);
+    }
 
     @Value("${jsearch.api.key:}")
     private String jsearchApiKey;
