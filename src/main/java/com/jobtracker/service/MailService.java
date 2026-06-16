@@ -55,6 +55,25 @@ public class MailService {
     }
 
     private void sendMail(String toEmail, String subject, String body) {
+        String resendApiKey = System.getenv("RESEND_API_KEY");
+        if (resendApiKey == null) {
+            resendApiKey = System.getProperty("RESEND_API_KEY");
+        }
+
+        if (resendApiKey != null && !resendApiKey.trim().isEmpty()) {
+            try {
+                String maskedKey = resendApiKey.length() > 12 ? 
+                    resendApiKey.substring(0, 8) + "..." + resendApiKey.substring(resendApiKey.length() - 4) : 
+                    "invalid-key";
+                System.out.println("[MAIL SERVICE] Attempting to send email via Resend using key: " + maskedKey);
+                sendEmailViaResend(toEmail, subject, body, resendApiKey);
+                return;
+            } catch (Exception e) {
+                System.err.println("[MAIL SERVICE] Resend send failed, trying Brevo fallback... Error: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+
         String brevoApiKey = System.getenv("BREVO_API_KEY");
         if (brevoApiKey == null) {
             brevoApiKey = System.getProperty("BREVO_API_KEY");
@@ -138,6 +157,41 @@ public class MailService {
             }
         } catch (Exception e) {
             System.err.println("Failed to send email via Brevo to " + toEmail + " due to: " + e.getMessage());
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void sendEmailViaResend(String toEmail, String subject, String body, String apiKey) {
+        try {
+            HttpClient client = HttpClient.newHttpClient();
+            
+            // Format JSON payload
+            String jsonPayload = String.format(
+                "{\"from\":\"onboarding@resend.dev\"," +
+                "\"to\":[\"%s\"]," +
+                "\"subject\":\"%s\"," +
+                "\"html\":\"%s\"}",
+                toEmail,
+                subject.replace("\"", "\\\""),
+                body.replace("\n", "<br>").replace("\"", "\\\"")
+            );
+
+            HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("https://api.resend.com/emails"))
+                .header("Authorization", "Bearer " + apiKey)
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
+                .build();
+
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                System.out.println("Email successfully sent via Resend HTTP API to: " + toEmail);
+            } else {
+                throw new RuntimeException("Resend API returned error status: " + response.statusCode() + " - " + response.body());
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to send email via Resend to " + toEmail + " due to: " + e.getMessage());
             throw new RuntimeException(e);
         }
     }
