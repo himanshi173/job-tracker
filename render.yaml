@@ -25,4 +25,6 @@ services:
         sync: false # User must provide this (Optional: for sending emails on Render Free tier)
       - key: RESEND_API_KEY
         sync: false # User must provide this (Optional: for sending emails on Render Free tier via Resend)
+      - key: SENDGRID_API_KEY
+        sync: false # User must provide this (Optional: for sending emails on Render Free tier via SendGrid)
 

@@ -45,6 +45,8 @@ public class JobTrackerApplication {
 		System.out.println("[CONFIG CHECK] BREVO_API_KEY Prop Present: " + (System.getProperty("BREVO_API_KEY") != null));
 		System.out.println("[CONFIG CHECK] RESEND_API_KEY Env Present: " + (System.getenv("RESEND_API_KEY") != null));
 		System.out.println("[CONFIG CHECK] RESEND_API_KEY Prop Present: " + (System.getProperty("RESEND_API_KEY") != null));
+		System.out.println("[CONFIG CHECK] SENDGRID_API_KEY Env Present: " + (System.getenv("SENDGRID_API_KEY") != null));
+		System.out.println("[CONFIG CHECK] SENDGRID_API_KEY Prop Present: " + (System.getProperty("SENDGRID_API_KEY") != null));
 		if (mongoUri != null) {
 			String masked = mongoUri.replaceAll(":[^@/]+@", ":****@");
 			System.out.println("[CONFIG CHECK] Resolved MONGODB_URI: " + masked);

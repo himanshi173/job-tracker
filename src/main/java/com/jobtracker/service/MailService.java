@@ -55,6 +55,25 @@ public class MailService {
     }
 
     private void sendMail(String toEmail, String subject, String body) {
+        String sendgridApiKey = System.getenv("SENDGRID_API_KEY");
+        if (sendgridApiKey == null) {
+            sendgridApiKey = System.getProperty("SENDGRID_API_KEY");
+        }
+
+        if (sendgridApiKey != null && !sendgridApiKey.trim().isEmpty()) {
+            try {
+                String maskedKey = sendgridApiKey.length() > 12 ? 
+                    sendgridApiKey.substring(0, 8) + "..." + sendgridApiKey.substring(sendgridApiKey.length() - 4) : 
+                    "invalid-key";
+                System.out.println("[MAIL SERVICE] Attempting to send email via SendGrid using key: " + maskedKey);
+                sendEmailViaSendGrid(toEmail, subject, body, sendgridApiKey);
+                return;
+            } catch (Exception e) {
+                System.err.println("[MAIL SERVICE] SendGrid send failed, trying Resend fallback... Error: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+
         String resendApiKey = System.getenv("RESEND_API_KEY");
         if (resendApiKey == null) {
             resendApiKey = System.getProperty("RESEND_API_KEY");
@@ -192,6 +211,47 @@ public class MailService {
             }
         } catch (Exception e) {
             System.err.println("Failed to send email via Resend to " + toEmail + " due to: " + e.getMessage());
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void sendEmailViaSendGrid(String toEmail, String subject, String body, String apiKey) {
+        String senderEmail = System.getenv("SMTP_USERNAME");
+        if (senderEmail == null) {
+            senderEmail = System.getProperty("SMTP_USERNAME");
+        }
+        if (senderEmail == null || senderEmail.trim().isEmpty()) {
+            senderEmail = "himanshi.kh.2004@gmail.com"; // Default fallback
+        }
+
+        try {
+            HttpClient client = HttpClient.newHttpClient();
+            
+            // Format JSON payload for SendGrid v3 Mail Send
+            String jsonPayload = String.format(
+                "{\"personalizations\":[{\"to\":[{\"email\":\"%s\"}]}],\"from\":{\"email\":\"%s\",\"name\":\"Job Tracker\"},\"subject\":\"%s\",\"content\":[{\"type\":\"text/html\",\"value\":\"%s\"}]}",
+                toEmail,
+                senderEmail,
+                subject.replace("\"", "\\\""),
+                body.replace("\n", "<br>").replace("\"", "\\\"")
+            );
+
+            HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("https://api.sendgrid.com/v3/mail/send"))
+                .header("Authorization", "Bearer " + apiKey)
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
+                .build();
+
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                System.out.println("Email successfully sent via SendGrid HTTP API to: " + toEmail);
+            } else {
+                throw new RuntimeException("SendGrid API returned error status: " + response.statusCode() + " - " + response.body());
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to send email via SendGrid to " + toEmail + " due to: " + e.getMessage());
             throw new RuntimeException(e);
         }
     }
