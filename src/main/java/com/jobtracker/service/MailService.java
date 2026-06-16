@@ -55,84 +55,86 @@ public class MailService {
     }
 
     private void sendMail(String toEmail, String subject, String body) {
-        String sendgridApiKey = System.getenv("SENDGRID_API_KEY");
-        if (sendgridApiKey == null) {
-            sendgridApiKey = System.getProperty("SENDGRID_API_KEY");
-        }
-
-        if (sendgridApiKey != null && !sendgridApiKey.trim().isEmpty()) {
-            try {
-                String maskedKey = sendgridApiKey.length() > 12 ? 
-                    sendgridApiKey.substring(0, 8) + "..." + sendgridApiKey.substring(sendgridApiKey.length() - 4) : 
-                    "invalid-key";
-                System.out.println("[MAIL SERVICE] Attempting to send email via SendGrid using key: " + maskedKey);
-                sendEmailViaSendGrid(toEmail, subject, body, sendgridApiKey);
-                return;
-            } catch (Exception e) {
-                System.err.println("[MAIL SERVICE] SendGrid send failed, trying Resend fallback... Error: " + e.getMessage());
-                e.printStackTrace();
+        java.util.concurrent.CompletableFuture.runAsync(() -> {
+            String sendgridApiKey = System.getenv("SENDGRID_API_KEY");
+            if (sendgridApiKey == null) {
+                sendgridApiKey = System.getProperty("SENDGRID_API_KEY");
             }
-        }
 
-        String resendApiKey = System.getenv("RESEND_API_KEY");
-        if (resendApiKey == null) {
-            resendApiKey = System.getProperty("RESEND_API_KEY");
-        }
-
-        if (resendApiKey != null && !resendApiKey.trim().isEmpty()) {
-            try {
-                String maskedKey = resendApiKey.length() > 12 ? 
-                    resendApiKey.substring(0, 8) + "..." + resendApiKey.substring(resendApiKey.length() - 4) : 
-                    "invalid-key";
-                System.out.println("[MAIL SERVICE] Attempting to send email via Resend using key: " + maskedKey);
-                sendEmailViaResend(toEmail, subject, body, resendApiKey);
-                return;
-            } catch (Exception e) {
-                System.err.println("[MAIL SERVICE] Resend send failed, trying Brevo fallback... Error: " + e.getMessage());
-                e.printStackTrace();
+            if (sendgridApiKey != null && !sendgridApiKey.trim().isEmpty()) {
+                try {
+                    String maskedKey = sendgridApiKey.length() > 12 ? 
+                        sendgridApiKey.substring(0, 8) + "..." + sendgridApiKey.substring(sendgridApiKey.length() - 4) : 
+                        "invalid-key";
+                    System.out.println("[MAIL SERVICE] Attempting to send email via SendGrid using key: " + maskedKey);
+                    sendEmailViaSendGrid(toEmail, subject, body, sendgridApiKey);
+                    return;
+                } catch (Exception e) {
+                    System.err.println("[MAIL SERVICE] SendGrid send failed, trying Resend fallback... Error: " + e.getMessage());
+                    e.printStackTrace();
+                }
             }
-        }
 
-        String brevoApiKey = System.getenv("BREVO_API_KEY");
-        if (brevoApiKey == null) {
-            brevoApiKey = System.getProperty("BREVO_API_KEY");
-        }
-
-        System.out.println("[MAIL SERVICE] BREVO_API_KEY defined: " + (brevoApiKey != null && !brevoApiKey.trim().isEmpty()));
-
-        if (brevoApiKey != null && !brevoApiKey.trim().isEmpty()) {
-            try {
-                String maskedKey = brevoApiKey.length() > 12 ? 
-                    brevoApiKey.substring(0, 8) + "..." + brevoApiKey.substring(brevoApiKey.length() - 4) : 
-                    "invalid-key";
-                System.out.println("[MAIL SERVICE] Attempting to send email via Brevo using key: " + maskedKey);
-                sendEmailViaBrevo(toEmail, subject, body, brevoApiKey);
-                return;
-            } catch (Exception e) {
-                System.err.println("[MAIL SERVICE] Brevo send failed, trying SMTP fallback... Error: " + e.getMessage());
-                e.printStackTrace();
+            String resendApiKey = System.getenv("RESEND_API_KEY");
+            if (resendApiKey == null) {
+                resendApiKey = System.getProperty("RESEND_API_KEY");
             }
-        } else {
-            System.out.println("[MAIL SERVICE] BREVO_API_KEY is not configured or is empty. Skipping Brevo HTTP API.");
-        }
 
-        // Standard SMTP Fallback
-        if (mailSender == null) {
-            printMockEmail(toEmail, subject, body, "SMTP Not Configured");
-            return;
-        }
+            if (resendApiKey != null && !resendApiKey.trim().isEmpty()) {
+                try {
+                    String maskedKey = resendApiKey.length() > 12 ? 
+                        resendApiKey.substring(0, 8) + "..." + resendApiKey.substring(resendApiKey.length() - 4) : 
+                        "invalid-key";
+                    System.out.println("[MAIL SERVICE] Attempting to send email via Resend using key: " + maskedKey);
+                    sendEmailViaResend(toEmail, subject, body, resendApiKey);
+                    return;
+                } catch (Exception e) {
+                    System.err.println("[MAIL SERVICE] Resend send failed, trying Brevo fallback... Error: " + e.getMessage());
+                    e.printStackTrace();
+                }
+            }
 
-        try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setTo(toEmail);
-            message.setSubject(subject);
-            message.setText(body);
-            mailSender.send(message);
-            System.out.println("Email successfully sent to: " + toEmail);
-        } catch (Exception e) {
-            System.err.println("Failed to send email to " + toEmail + " due to: " + e.getMessage());
-            printMockEmail(toEmail, subject, body, "Fallback Mode");
-        }
+            String brevoApiKey = System.getenv("BREVO_API_KEY");
+            if (brevoApiKey == null) {
+                brevoApiKey = System.getProperty("BREVO_API_KEY");
+            }
+
+            System.out.println("[MAIL SERVICE] BREVO_API_KEY defined: " + (brevoApiKey != null && !brevoApiKey.trim().isEmpty()));
+
+            if (brevoApiKey != null && !brevoApiKey.trim().isEmpty()) {
+                try {
+                    String maskedKey = brevoApiKey.length() > 12 ? 
+                        brevoApiKey.substring(0, 8) + "..." + brevoApiKey.substring(brevoApiKey.length() - 4) : 
+                        "invalid-key";
+                    System.out.println("[MAIL SERVICE] Attempting to send email via Brevo using key: " + maskedKey);
+                    sendEmailViaBrevo(toEmail, subject, body, brevoApiKey);
+                    return;
+                } catch (Exception e) {
+                    System.err.println("[MAIL SERVICE] Brevo send failed, trying SMTP fallback... Error: " + e.getMessage());
+                    e.printStackTrace();
+                }
+            } else {
+                System.out.println("[MAIL SERVICE] BREVO_API_KEY is not configured or is empty. Skipping Brevo HTTP API.");
+            }
+
+            // Standard SMTP Fallback
+            if (mailSender == null) {
+                printMockEmail(toEmail, subject, body, "SMTP Not Configured");
+                return;
+            }
+
+            try {
+                SimpleMailMessage message = new SimpleMailMessage();
+                message.setTo(toEmail);
+                message.setSubject(subject);
+                message.setText(body);
+                mailSender.send(message);
+                System.out.println("Email successfully sent to: " + toEmail);
+            } catch (Exception e) {
+                System.err.println("Failed to send email to " + toEmail + " due to: " + e.getMessage());
+                printMockEmail(toEmail, subject, body, "Fallback Mode");
+            }
+        });
     }
 
     private void sendEmailViaBrevo(String toEmail, String subject, String body, String apiKey) {
