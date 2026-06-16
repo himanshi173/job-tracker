@@ -21,4 +21,6 @@ services:
         sync: false # User must provide this
       - key: SMTP_PASSWORD
         sync: false # User must provide this
+      - key: BREVO_API_KEY
+        sync: false # User must provide this (Optional: for sending emails on Render Free tier)
 

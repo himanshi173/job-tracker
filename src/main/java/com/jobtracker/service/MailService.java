@@ -5,6 +5,11 @@ import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+
 @Service
 public class MailService {
 
@@ -20,32 +25,7 @@ public class MailService {
                 "Best regards,\n" +
                 "Job Tracker Team";
 
-        if (mailSender == null) {
-            System.out.println("==================================================");
-            System.out.println("[MOCK EMAIL ALERT - SMTP Not Configured]");
-            System.out.println("To: " + toEmail);
-            System.out.println("Subject: " + subject);
-            System.out.println("Body:\n" + body);
-            System.out.println("==================================================");
-            return;
-        }
-
-        try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setTo(toEmail);
-            message.setSubject(subject);
-            message.setText(body);
-            mailSender.send(message);
-            System.out.println("Interview reminder email successfully sent to: " + toEmail);
-        } catch (Exception e) {
-            System.err.println("Failed to send email to " + toEmail + " due to: " + e.getMessage());
-            System.out.println("==================================================");
-            System.out.println("[MOCK EMAIL ALERT - Fallback Mode]");
-            System.out.println("To: " + toEmail);
-            System.out.println("Subject: " + subject);
-            System.out.println("Body:\n" + body);
-            System.out.println("==================================================");
-        }
+        sendMail(toEmail, subject, body);
     }
 
     public void sendDraftReminder(String toEmail, String username, String companyName, String role) {
@@ -56,32 +36,7 @@ public class MailService {
                 "Best regards,\n" +
                 "Job Tracker Team";
 
-        if (mailSender == null) {
-            System.out.println("==================================================");
-            System.out.println("[MOCK EMAIL ALERT - SMTP Not Configured]");
-            System.out.println("To: " + toEmail);
-            System.out.println("Subject: " + subject);
-            System.out.println("Body:\n" + body);
-            System.out.println("==================================================");
-            return;
-        }
-
-        try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setTo(toEmail);
-            message.setSubject(subject);
-            message.setText(body);
-            mailSender.send(message);
-            System.out.println("Draft reminder email successfully sent to: " + toEmail);
-        } catch (Exception e) {
-            System.err.println("Failed to send draft reminder email to " + toEmail + " due to: " + e.getMessage());
-            System.out.println("==================================================");
-            System.out.println("[MOCK EMAIL ALERT - Fallback Mode]");
-            System.out.println("To: " + toEmail);
-            System.out.println("Subject: " + subject);
-            System.out.println("Body:\n" + body);
-            System.out.println("==================================================");
-        }
+        sendMail(toEmail, subject, body);
     }
 
     public void sendOtpEmail(String toEmail, String username, String otp, String type) {
@@ -96,13 +51,27 @@ public class MailService {
                 "Best regards,\n" +
                 "Job Tracker Team";
 
+        sendMail(toEmail, subject, body);
+    }
+
+    private void sendMail(String toEmail, String subject, String body) {
+        String brevoApiKey = System.getenv("BREVO_API_KEY");
+        if (brevoApiKey == null) {
+            brevoApiKey = System.getProperty("BREVO_API_KEY");
+        }
+
+        if (brevoApiKey != null && !brevoApiKey.trim().isEmpty()) {
+            try {
+                sendEmailViaBrevo(toEmail, subject, body, brevoApiKey);
+                return;
+            } catch (Exception e) {
+                System.err.println("Brevo send failed, trying SMTP fallback... Error: " + e.getMessage());
+            }
+        }
+
+        // Standard SMTP Fallback
         if (mailSender == null) {
-            System.out.println("==================================================");
-            System.out.println("[MOCK OTP EMAIL ALERT - SMTP Not Configured]");
-            System.out.println("To: " + toEmail);
-            System.out.println("Subject: " + subject);
-            System.out.println("Body:\n" + body);
-            System.out.println("==================================================");
+            printMockEmail(toEmail, subject, body, "SMTP Not Configured");
             return;
         }
 
@@ -112,15 +81,64 @@ public class MailService {
             message.setSubject(subject);
             message.setText(body);
             mailSender.send(message);
-            System.out.println("OTP email successfully sent to: " + toEmail);
+            System.out.println("Email successfully sent to: " + toEmail);
         } catch (Exception e) {
-            System.err.println("Failed to send OTP email to " + toEmail + " due to: " + e.getMessage());
-            System.out.println("==================================================");
-            System.out.println("[MOCK OTP EMAIL ALERT - Fallback Mode]");
-            System.out.println("To: " + toEmail);
-            System.out.println("Subject: " + subject);
-            System.out.println("Body:\n" + body);
-            System.out.println("==================================================");
+            System.err.println("Failed to send email to " + toEmail + " due to: " + e.getMessage());
+            printMockEmail(toEmail, subject, body, "Fallback Mode");
         }
+    }
+
+    private void sendEmailViaBrevo(String toEmail, String subject, String body, String apiKey) {
+        String senderEmail = System.getenv("SMTP_USERNAME");
+        if (senderEmail == null) {
+            senderEmail = System.getProperty("SMTP_USERNAME");
+        }
+        if (senderEmail == null || senderEmail.trim().isEmpty()) {
+            senderEmail = "himanshi.kh.2004@gmail.com"; // Default fallback
+        }
+
+        try {
+            HttpClient client = HttpClient.newHttpClient();
+            
+            // Format JSON payload
+            String jsonPayload = String.format(
+                "{\"sender\":{\"name\":\"Job Tracker\",\"email\":\"%s\"}," +
+                "\"to\":[{\"email\":\"%s\"}]," +
+                "\"subject\":\"%s\"," +
+                "\"htmlContent\":\"%s\"}",
+                senderEmail,
+                toEmail,
+                subject.replace("\"", "\\\""),
+                body.replace("\n", "<br>").replace("\"", "\\\"")
+            );
+
+            HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("https://api.brevo.com/v3/smtp/email"))
+                .header("accept", "application/json")
+                .header("api-key", apiKey)
+                .header("content-type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
+                .build();
+
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                System.out.println("Email successfully sent via Brevo HTTP API to: " + toEmail);
+            } else {
+                throw new RuntimeException("Brevo API returned error status: " + response.statusCode() + " - " + response.body());
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to send email via Brevo to " + toEmail + " due to: " + e.getMessage());
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void printMockEmail(String toEmail, String subject, String body, String mode) {
+        System.out.println("==================================================");
+        System.out.println("[MOCK EMAIL ALERT - " + mode + "]");
+        System.out.println("To: " + toEmail);
+        System.out.println("Subject: " + subject);
+        System.out.println("Body:\n" + body);
+        System.out.println("==================================================");
     }
 }
