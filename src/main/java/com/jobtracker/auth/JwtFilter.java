@@ -29,8 +29,8 @@ public class JwtFilter extends OncePerRequestFilter {
             return;
         }
 
-        // Apply JWT validation only to /api/jobs/**
-        if (path.startsWith("/api/jobs")) {
+        // Apply JWT validation to /api/jobs/**, /api/interviews/**, and /api/alerts/**
+        if (path.startsWith("/api/jobs") || path.startsWith("/api/interviews") || path.startsWith("/api/alerts")) {
             String authHeader = request.getHeader("Authorization");
 
             if (authHeader == null || !authHeader.startsWith("Bearer ")) {
