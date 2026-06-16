@@ -60,13 +60,22 @@ public class MailService {
             brevoApiKey = System.getProperty("BREVO_API_KEY");
         }
 
+        System.out.println("[MAIL SERVICE] BREVO_API_KEY defined: " + (brevoApiKey != null && !brevoApiKey.trim().isEmpty()));
+
         if (brevoApiKey != null && !brevoApiKey.trim().isEmpty()) {
             try {
+                String maskedKey = brevoApiKey.length() > 12 ? 
+                    brevoApiKey.substring(0, 8) + "..." + brevoApiKey.substring(brevoApiKey.length() - 4) : 
+                    "invalid-key";
+                System.out.println("[MAIL SERVICE] Attempting to send email via Brevo using key: " + maskedKey);
                 sendEmailViaBrevo(toEmail, subject, body, brevoApiKey);
                 return;
             } catch (Exception e) {
-                System.err.println("Brevo send failed, trying SMTP fallback... Error: " + e.getMessage());
+                System.err.println("[MAIL SERVICE] Brevo send failed, trying SMTP fallback... Error: " + e.getMessage());
+                e.printStackTrace();
             }
+        } else {
+            System.out.println("[MAIL SERVICE] BREVO_API_KEY is not configured or is empty. Skipping Brevo HTTP API.");
         }
 
         // Standard SMTP Fallback
