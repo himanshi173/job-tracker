@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - hirepath-network
+
+  hirepath:
+    build: .
+    container_name: hirepath
+    ports:
+      - "8081:8081"
+    environment:
+      MONGODB_URI: mongodb://mongodb:27017/jobtracker
+    depends_on:
+      - mongodb
+    networks:
+      - hirepath-network
+
+volumes:
+  mongo-data:
+
+networks:
+  hirepath-network:
